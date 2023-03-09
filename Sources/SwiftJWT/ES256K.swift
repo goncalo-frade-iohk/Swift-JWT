@@ -1,6 +1,7 @@
 import Foundation
 import LoggerAPI
 import secp256k1
+import CryptoKit
 
 class ES256KSigner: SignerAlgorithm {
     let name: String = "ES256K"
@@ -32,8 +33,7 @@ class ES256KSigner: SignerAlgorithm {
             .Signing
             .PrivateKey(rawRepresentation: keyData)
 
-        let signedData = try privateKey.ecdsa.signature(for: data)
-        return signedData.rawRepresentation
+        return try privateKey.ecdsa.signature(for: data).rawRepresentation
     }
 }
 
@@ -63,7 +63,7 @@ class ES256KVerifier: VerifierAlgorithm {
         }
     }
 
-    // Send the base64URLencoded signature and `header.claims` to BlueECC for verification.
+    // Send the base64URLencoded signature and `header.claims` to libsecp256k1 for verification.
     private func verify(signature: Data, for data: Data) -> Bool {
         do {
             guard let keyString = String(data: key, encoding: .utf8) else {
@@ -71,7 +71,7 @@ class ES256KVerifier: VerifierAlgorithm {
             }
             let keyData = try stripKeyFromPEM(pem: keyString)
             let format: secp256k1.Format
-            switch key[0] {
+            switch keyData[0] {
             case 0x02, 0x03:
                 format = .compressed
             case 0x04:
@@ -79,15 +79,16 @@ class ES256KVerifier: VerifierAlgorithm {
             default:
                 throw JWTError.failedVerification
             }
+
             let publicKey = try secp256k1
                 .Signing
-                .PublicKey(rawRepresentation: key, format: format)
-            return publicKey
+                .PublicKey(rawRepresentation: keyData, format: format)
+            let signatureRaw = try secp256k1.Signing.ECDSASignature(rawRepresentation: signature)
+            let verification =  publicKey
                 .ecdsa
-                .isValidSignature(
-                    try .init(rawRepresentation: signature),
-                    for: data
-                )
+                .isValidSignature(signatureRaw, for: data)
+
+            return verification
         }
         catch {
             Log.error("Verification failed: \(error)")
