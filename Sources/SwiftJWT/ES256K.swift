@@ -25,11 +25,12 @@ class ES256KSigner: SignerAlgorithm {
     // send utf8 encoded `header.claims` to BlueECC for signing
     private func sign(_ data: Data) throws -> Data {
         guard let keyString = String(data: key, encoding: .utf8) else {
-            throw JWTError.invalidPrivateKey
+            throw JWTError.invalidUTF8Data
         }
+        let keyData = try stripKeyFromPEM(pem: keyString)
         let privateKey = try secp256k1
             .Signing
-            .PrivateKey(rawRepresentation: key)
+            .PrivateKey(rawRepresentation: keyData)
 
         let signedData = try privateKey.ecdsa.signature(for: data)
         return signedData.rawRepresentation
@@ -65,6 +66,10 @@ class ES256KVerifier: VerifierAlgorithm {
     // Send the base64URLencoded signature and `header.claims` to BlueECC for verification.
     private func verify(signature: Data, for data: Data) -> Bool {
         do {
+            guard let keyString = String(data: key, encoding: .utf8) else {
+                throw JWTError.invalidUTF8Data
+            }
+            let keyData = try stripKeyFromPEM(pem: keyString)
             let format: secp256k1.Format
             switch key[0] {
             case 0x02, 0x03:
@@ -89,4 +94,16 @@ class ES256KVerifier: VerifierAlgorithm {
             return false
         }
     }
+}
+
+private func stripKeyFromPEM(pem: String) throws -> Data {
+    let strippedKey = String(pem.filter { !" \n\t\r".contains($0) })
+    let pemComponents = strippedKey.components(separatedBy: "-----")
+    guard pemComponents.count == 5 else {
+        throw JWTError.missingPEMHeaders
+    }
+    guard let der = Data(base64Encoded: pemComponents[2]) else {
+        throw JWTError.missingPEMHeaders
+    }
+    return der
 }
