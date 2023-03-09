@@ -146,6 +146,12 @@ public struct JWTVerifier {
     public static func es512(publicKey: Data) -> JWTVerifier {
         return JWTVerifier(verifierAlgorithm: BlueECVerifier(key: publicKey, curve: .secp521r1))
     }
+
+    /// Initialize a JWTVerifier using the ECDSA SHA 256 algorithm and the provided secp256k1 public key.
+    /// - Parameter publicKey: The UTF8 encoded PEM public key, with a "BEGIN PUBLIC KEY" header.
+    public static func es256k(publicKey: Data) -> JWTVerifier {
+        return JWTVerifier(verifierAlgorithm: ES256KVerifier(key: publicKey))
+    }
     
     /// Initialize a JWTVerifier that will always return true when verifying the JWT. This is equivelent to using the "none" alg header.
     public static let none = JWTVerifier(verifierAlgorithm: NoneAlgorithm())
