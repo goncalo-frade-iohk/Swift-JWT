@@ -33,7 +33,19 @@ class ES256KSigner: SignerAlgorithm {
             .Signing
             .PrivateKey(rawRepresentation: keyData)
 
-        return try privateKey.ecdsa.signature(for: data).rawRepresentation
+        let (r, s) = extractRS(from: try privateKey.ecdsa.signature(for: data).rawRepresentation)
+
+        // For some reason secp256k1 reverses the bytes of R/S. This fixes that and allows this signature to be valid in bouncy castle.
+
+        return Data(r.reversed()) + Data(s.reversed())
+    }
+
+    private func extractRS(from signature: Data) -> (r: Data, s: Data) {
+        let rIndex = signature.startIndex
+        let sIndex = signature.index(rIndex, offsetBy: 32)
+        let r = signature[rIndex..<sIndex]
+        let s = signature[sIndex..<signature.endIndex]
+        return (r, s)
     }
 }
 
